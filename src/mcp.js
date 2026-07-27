@@ -199,7 +199,13 @@ async function callTool(name, args = {}, ctx) {
         : 'No history supplied, so this is rendered from the address alone. Pass an events array to read the actual account.',
     ];
     for (const e of legend.slice(0, 12)) {
-      lines.push(`  ${e.token} ${e.value} — holds ${(e.share * 100).toFixed(2)}% of the sheet`);
+      // Name the transaction, not just the amount. The listing calls the legend
+      // "which transaction it is and how much of the sheet it holds", and the
+      // hash is the only part that answers the first half.
+      const tx = typeof e.hash === 'string' && e.hash.length > 12
+        ? `${e.hash.slice(0, 10)}…${e.hash.slice(-6)}`
+        : e.hash ?? '(no hash supplied)';
+      lines.push(`  ${tx} — ${e.token} ${e.value}, holds ${(e.share * 100).toFixed(2)}% of the sheet`);
     }
 
     return {

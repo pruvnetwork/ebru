@@ -770,6 +770,29 @@ await check('the tool delivers every format the listing promises', async () => {
   return `png + svg (${mb.toFixed(2)} MB), unknown refused`;
 });
 
+// "a legend naming every mark: which transaction it is and how much of the
+// sheet it holds" — the second half was there, the first was not.
+await check('the legend names the transaction, as the listing says it does', async () => {
+  const free = createEbruServer({ rendersPerMinute: 200 });
+  await new Promise((r) => free.listen(0, r));
+  const r = await fetch(`http://127.0.0.1:${free.address().port}/mcp`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'tools/call',
+      params: { name: 'wallet_portrait', arguments: { address: '0xabc', block: 1, events: [
+        { hash: '0xdeadbeef1234567890abcdef', ts: 1735689600, value: 25000, token: 'USDT', counterparty: '0xdef' },
+      ] } },
+    }),
+  }).then((x) => x.json());
+  free.closeAllConnections();
+  await new Promise((r2) => free.close(r2));
+  const text = r.result.content.find((c) => c.type === 'text').text;
+  assert(/0xdeadbeef/.test(text), 'the legend does not identify the transaction');
+  assert(/holds .*% of the sheet/.test(text), 'the legend does not report the share');
+  return 'hash + share both present';
+});
+
 await check('a batch containing tools/call is charged, one without it is not', async () => {
   const batch = (msgs) =>
     fetch(`${pbase}/mcp`, {
