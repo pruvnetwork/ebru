@@ -301,12 +301,14 @@ function manifest(ctx) {
     },
     {
       path: '/portrait',
-      price: advertisedPrice(ctx),
-      payment: ctx.payments.sdkActive
-        ? { protocol: 'x402', network: 'eip155:196', via: 'OKX Payment SDK', chargedAt: 'tools/call' }
-        : ctx.payments.enabled
-          ? { protocol: 'x402', network: ctx.payments.network, asset: ctx.payments.asset }
-          : 'currently free — payment rails are configured but not enabled on this deployment',
+      // The SDK gate guards /mcp and nothing else, so this REST surface is
+      // priced by our own gate or it is free. Quoting the MCP price here would
+      // make the manifest advertise a charge that never arrives — the same
+      // class of mismatch that had it advertising free while /mcp charged.
+      price: ctx.payments.enabled ? ctx.payments.display : '0',
+      payment: ctx.payments.enabled
+        ? { protocol: 'x402', network: ctx.payments.network, asset: ctx.payments.asset }
+        : 'free — the paid surface is the MCP endpoint at /mcp',
       summary: 'Reads a wallet as a bath: every transaction is a drop, oldest deepest. Returns the artwork plus a legend naming each mark.',
       params: {
         address: 'required',

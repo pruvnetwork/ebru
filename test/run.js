@@ -623,6 +623,26 @@ const rpc = (method, params) =>
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: params ?? {} }),
   });
 
+// Twice now the manifest has quoted a price the endpoint did not honour — once
+// advertising free while /mcp charged, once the reverse. Walk what it claims and
+// call each path to see whether the claim holds.
+await check('every price the manifest quotes is the price the path charges', async () => {
+  const m = await (await fetch(`${pbase}/`)).json();
+  const checked = [];
+  for (const s of m.services) {
+    const probe = s.path === '/portrait' ? `${s.path}?address=0xabc&block=1` : `${s.path}?seed=x&size=140`;
+    const r = await fetch(`${pbase}${probe}`);
+    const charges = r.status === 402;
+    const claims = s.price !== '0';
+    assert(
+      charges === claims,
+      `${s.path} advertises "${s.price}" but answered ${r.status}`,
+    );
+    checked.push(`${s.path}=${s.price}`);
+  }
+  return checked.join(' ');
+});
+
 await check('the MCP handshake is never charged for', async () => {
   const results = [];
   for (const method of ['initialize', 'ping', 'tools/list', 'resources/list', 'prompts/list']) {
