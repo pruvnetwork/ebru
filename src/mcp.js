@@ -67,6 +67,12 @@ const TOOLS = [
           description: 'Force a pigment palette. Omit and the seed chooses.',
           enum: PALETTE_NAMES,
         },
+        format: {
+          type: 'string',
+          description:
+            'png returns the rendered image; svg returns the vector source, which scales to any size. Defaults to png.',
+          enum: ['png', 'svg'],
+        },
       },
       required: ['seed'],
     },
@@ -130,8 +136,16 @@ async function callTool(name, args = {}, ctx) {
       return { isError: true, content: [{ type: 'text', text: `Unknown palette "${args.palette}". Choose one of: ${PALETTE_NAMES.join(', ')}` }] };
     }
 
+    // The listing offers "a PNG, or SVG on request", so the request has to
+    // exist. The vector source is what the engine produces anyway; the raster
+    // is derived from it.
+    const format = args.format ?? 'png';
+    if (format !== 'png' && format !== 'svg') {
+      return { isError: true, content: [{ type: 'text', text: `Unknown format "${args.format}". Choose png or svg.` }] };
+    }
+
     const size = clampSize(args.size);
-    const key = `mcp|marble|${seed}|${size}|${args.pattern ?? ''}|${args.palette ?? ''}`;
+    const key = `mcp|marble|${seed}|${size}|${args.pattern ?? ''}|${args.palette ?? ''}|${format}`;
     const hit = ctx?.cache?.get(key);
     if (hit) return hit;
 
@@ -141,14 +155,16 @@ async function callTool(name, args = {}, ctx) {
       pattern: args.pattern,
       palette: args.palette,
     });
+    const caption = {
+      type: 'text',
+      text: `${meta.patternLabel} · ${meta.paletteLabel}. Seed "${meta.seed}". Ask for this seed again and you get this exact sheet.`,
+    };
     const result = {
-      content: [
-        imageContent(toPng(svg, { width: size })),
-        {
-          type: 'text',
-          text: `${meta.patternLabel} · ${meta.paletteLabel}. Seed "${meta.seed}". Ask for this seed again and you get this exact sheet.`,
-        },
-      ],
+      content: format === 'svg'
+        // Vector source as text: it is markup, and a caller asking for SVG
+        // wants something it can scale or edit, not a picture of one.
+        ? [{ type: 'text', text: svg }, caption]
+        : [imageContent(toPng(svg, { width: size })), caption],
     };
     ctx?.cache?.set(key, result);
     return result;

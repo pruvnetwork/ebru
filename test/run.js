@@ -15,6 +15,7 @@ import { render, renderReading, PATTERN_NAMES, PALETTE_NAMES, analyse, chooseGes
 import { toPng } from '../src/raster.js';
 import { createServer } from 'node:http';
 import { createEbruServer } from '../src/service.js';
+import { MCP_TOOLS } from '../src/mcp.js';
 
 let passed = 0;
 const failures = [];
@@ -733,6 +734,40 @@ await check('the largest tool result still fits the response limit', async () =>
   assert(r.status === 200, `status ${r.status}`);
   assert(mb < 4.5, `${mb.toFixed(2)} MB — over the platform's 4.5 MB limit`);
   return `${mb.toFixed(2)} MB at the cap`;
+});
+
+// The listed service description promises "a PNG, or SVG on request". A listing
+// that offers something the endpoint cannot do is the same defect as a manifest
+// quoting a price the path does not charge — check the tool can honour it.
+await check('the tool delivers every format the listing promises', async () => {
+  const free = createEbruServer({ rendersPerMinute: 200 });
+  await new Promise((r) => free.listen(0, r));
+  const fb = `http://127.0.0.1:${free.address().port}`;
+  const call = (args) =>
+    fetch(`${fb}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'marble', arguments: args } }),
+    }).then((r) => r.json());
+
+  const schema = MCP_TOOLS.find((t) => t.name === 'marble').inputSchema.properties;
+  assert(schema.format, 'the tool declares no format parameter');
+
+  const svg = await call({ seed: 'formats', format: 'svg', pattern: 'bulbul' });
+  const svgText = svg.result.content.find((c) => c.type === 'text')?.text ?? '';
+  assert(svgText.startsWith('<svg') || svgText.includes('<svg'), 'svg format did not return markup');
+  const mb = Buffer.byteLength(JSON.stringify(svg)) / 1048576;
+  assert(mb < 4.5, `${mb.toFixed(2)} MB — over the response limit`);
+
+  const png = await call({ seed: 'formats' });
+  assert(png.result.content.some((c) => c.type === 'image'), 'default did not return an image');
+
+  const bad = await call({ seed: 'formats', format: 'pdf' });
+  assert(bad.result.isError, 'an unknown format was not refused');
+
+  free.closeAllConnections();
+  await new Promise((r) => free.close(r));
+  return `png + svg (${mb.toFixed(2)} MB), unknown refused`;
 });
 
 await check('a batch containing tools/call is charged, one without it is not', async () => {
