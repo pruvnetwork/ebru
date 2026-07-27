@@ -53,6 +53,13 @@ export function render(seed, opts = {}) {
   const palette = getPalette(paletteName);
 
   const marble = new Marble({ width, height, resolution, maxEdge: opts.maxEdge });
+  // Watching the bath is opt-in and read-only: with no hook this is the same
+  // render it always was, and with one the artwork is unchanged — only now
+  // somebody saw it being made. The palette is handed over too, so a frame can
+  // be written on the same paper the finished sheet uses.
+  if (opts.onFrame) {
+    marble.onFrame = (m) => opts.onFrame(m, { palette, pattern, patternName, paletteName });
+  }
 
   const started = process.hrtime.bigint();
   pattern.fn(marble, rng, palette);

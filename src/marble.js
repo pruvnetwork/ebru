@@ -58,6 +58,31 @@ export class Marble {
     this.nextId = 0;
     /** @type {{id: number, xs: number[], ys: number[], color: string}[]} */
     this.drops = [];
+    /**
+     * Called with the bath after every gesture, when set.
+     *
+     * The bath passes through every intermediate state on its way to the final
+     * sheet — paint lands, spreads, is dragged by the comb — and those states
+     * are the one thing a model-backed renderer has no equivalent of. This lets
+     * a caller watch them. It reads the bath and never changes it, so a render
+     * with a hook attached produces the same artwork as one without.
+     *
+     * @type {((m: Marble) => void) | null}
+     */
+    this.onFrame = null;
+  }
+
+  /**
+   * End of one gesture: tidy the curves, then let an observer see the bath.
+   *
+   * Every mutator funnels through here rather than calling `_resample` itself,
+   * so there is exactly one place a frame can be taken from and no gesture can
+   * be added later that quietly skips it.
+   */
+  _step() {
+    this._resample();
+    if (this.onFrame) this.onFrame(this);
+    return this;
   }
 
   /**
@@ -197,7 +222,7 @@ export class Marble {
     this.drops.push({ id: this.nextId++, xs, ys, color });
     this.points += n;
 
-    this._resample();
+    this._step();
     return this;
   }
 
@@ -219,7 +244,7 @@ export class Marble {
         ys[i] += uy * s;
       }
     }
-    this._resample();
+    this._step();
     return this;
   }
 
@@ -246,7 +271,7 @@ export class Marble {
         ys[i] += uy * s;
       }
     }
-    this._resample();
+    this._step();
     return this;
   }
 
@@ -313,7 +338,7 @@ export class Marble {
         ys[i] = y + px * s + py * c;
       }
     }
-    this._resample();
+    this._step();
     return this;
   }
 
@@ -358,7 +383,7 @@ export class Marble {
         ys[i] += uy * s;
       }
     }
-    this._resample();
+    this._step();
     return this;
   }
 
@@ -379,7 +404,7 @@ export class Marble {
         ys[i] += uy * s;
       }
     }
-    this._resample();
+    this._step();
     return this;
   }
 
