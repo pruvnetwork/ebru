@@ -671,7 +671,15 @@ async function handle(req, res, ctx) {
             transport: 'streamable-http',
             usage: 'POST a JSON-RPC 2.0 message to this URL. Start with initialize, then tools/list.',
             tools: ['marble', 'wallet_portrait'],
-            price: ctx.payments.enabled ? ctx.payments.display : '0',
+            // Reading `enabled` alone reports zero while the SDK gate is the one
+            // charging — the identical mismatch the manifest had, on the surface
+            // a probe is most likely to read first.
+            price: advertisedPrice(ctx),
+            // Say where the price applies, so a probe that sees a price here
+            // does not conclude the handshake it is about to make will cost
+            // something.
+            chargedAt: 'tools/call',
+            free: ['initialize', 'ping', 'tools/list', 'resources/list', 'prompts/list'],
             docs: `${publicOrigin(req, url)}/`,
           });
           res.writeHead(200, {

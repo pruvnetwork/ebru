@@ -758,12 +758,17 @@ await check('the manifest quotes the SDK price in atomic units, exactly', async 
   await new Promise((r) => sdk.listen(0, r));
   const base = `http://127.0.0.1:${sdk.address().port}`;
   const m = await (await fetch(`${base}/.well-known/x402`)).json();
+  // The probe surface has to agree with the manifest — it is what a reviewer
+  // fetching the endpoint by hand sees first.
+  const probe = await (await fetch(`${base}/mcp`)).json();
   sdk.closeAllConnections();
   await new Promise((r) => sdk.close(r));
 
   assert(Array.isArray(m.accepts) && m.accepts.length === 1, `accepts is ${JSON.stringify(m.accepts)}`);
   const a = m.accepts[0];
   assert(a.amount === '1000', `$0.001 at 6 decimals should be 1000, got ${a.amount}`);
+  assert(probe.price === '$0.001', `the GET probe still says ${probe.price} while the SDK charges`);
+  assert(probe.chargedAt === 'tools/call', 'the probe does not say where the price applies');
   assert(a.network === 'eip155:196', `network ${a.network}`);
   assert(a.asset === '0xUSDT0' && a.payTo === '0xPayToAddress', 'asset or payTo missing');
   assert(a.extra?.version === '1', 'token domain missing');
