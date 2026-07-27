@@ -623,6 +623,47 @@ const rpc = (method, params) =>
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: params ?? {} }),
   });
 
+// The OKX middleware settles a verified payment unless `res.statusCode` is 4xx
+// or 5xx — and it learns the status by buffering our response through a
+// replaced `res.writeHead`, which does not set `statusCode` on its own. If our
+// refusals do not set it too, a caller who paid and then got an error is
+// charged for the error. Reproduce the middleware's mechanism exactly and check
+// what it would decide.
+await check('a refused request would not be settled for', async () => {
+  const target = createEbruServer({ rendersPerMinute: 200 });
+  const realHandler = target.listeners('request')[0];
+  const seen = [];
+  const spy = createServer((req, res) => {
+    // Exactly what @okxweb3/x402-express does: buffer the response, wait for
+    // end, read statusCode to decide on settlement, then flush.
+    const original = { writeHead: res.writeHead.bind(res), write: res.write.bind(res), end: res.end.bind(res) };
+    const buffered = [];
+    let markEnded;
+    const ended = new Promise((r) => { markEnded = r; });
+    res.writeHead = (...a) => { buffered.push(['writeHead', a]); return res; };
+    res.write = (...a) => { buffered.push(['write', a]); return true; };
+    res.end = (...a) => { buffered.push(['end', a]); markEnded(); return res; };
+    realHandler(req, res);
+    ended.then(() => {
+      seen.push(res.statusCode); // the settlement decision reads this
+      Object.assign(res, original);
+      for (const [m, a] of buffered) original[m](...a);
+    });
+  });
+  await new Promise((r) => spy.listen(0, r));
+  const base = `http://127.0.0.1:${spy.address().port}`;
+  // A refusal the service issues for real: no seed.
+  await fetch(`${base}/marble`);
+  spy.closeAllConnections();
+  await new Promise((r) => spy.close(r));
+  assert(seen.length === 1, `expected one response, saw ${seen.length}`);
+  assert(
+    seen[0] >= 400,
+    `the middleware would read statusCode ${seen[0]} and settle a payment for a refused request`,
+  );
+  return `statusCode ${seen[0]} — refusal is visible, no settlement`;
+});
+
 // Twice now the manifest has quoted a price the endpoint did not honour — once
 // advertising free while /mcp charged, once the reverse. Walk what it claims and
 // call each path to see whether the claim holds.

@@ -69,6 +69,24 @@ if (gate) {
 }
 
 // Everything else, including the MCP handler itself once payment is settled.
-app.use((req, res) => ebruHandler(req, res));
+//
+// The catch is not decoration. The payment middleware runs the handler and then
+// waits on `res.end` before it settles or refunds; a rejection that ends nothing
+// leaves it waiting until the platform kills the request, and the caller sees a
+// timeout rather than an error. Timeouts are what the first listings were
+// rejected for. Answer, always.
+app.use((req, res) => {
+  Promise.resolve(ebruHandler(req, res)).catch((err) => {
+    console.error('[ebru] handler rejected', err);
+    if (res.headersSent || res.writableEnded) return;
+    const body = JSON.stringify({ error: 'Render failed.' });
+    res.writeHead(500, {
+      'content-type': 'application/json; charset=utf-8',
+      'content-length': Buffer.byteLength(body),
+      'access-control-allow-origin': '*',
+    });
+    res.end(body);
+  });
+});
 
 export default app;

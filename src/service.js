@@ -359,6 +359,22 @@ async function readJson(req, limit = 2_000_000) {
  * node server or on a serverless platform that hands us (req, res) directly.
  */
 async function handle(req, res, ctx) {
+  // Keep `res.statusCode` in step with whatever we write.
+  //
+  // This matters for money. The payment middleware buffers our response and
+  // then decides whether to take payment by reading `res.statusCode` — it
+  // settles unless the status is 4xx or 5xx. But it buffers by replacing
+  // `res.writeHead`, and a replaced `writeHead` never touches `statusCode`.
+  // We set status *only* through `writeHead`, so as far as the middleware can
+  // see every response we make is a 200, and a caller who paid and then got an
+  // error would be charged for it anyway. Setting both keeps the refusal path
+  // honest, and costs nothing when no middleware is in front of us.
+  const writeHead = res.writeHead.bind(res);
+  res.writeHead = (status, ...rest) => {
+    if (typeof status === 'number') res.statusCode = status;
+    return writeHead(status, ...rest);
+  };
+
   {
     let url;
     try {
