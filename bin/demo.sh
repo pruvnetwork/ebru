@@ -120,6 +120,10 @@ beat 6
 
 # ─────────────────────────────────────────────────────────────
 echo
-bold "Live on OKX.AI — free to call"
+# Two claims used to sit on this line that the camera would have carried into
+# the submission: that the listing is live, and that calls are free. Neither is
+# true — the listing is under review and a tool call costs 0.001 USDT. What is
+# true is the thing the whole demo just showed.
+bold "Deterministic marbling, computed — 0.001 USDT a call on X Layer"
 dim  "$BASE"
 echo
