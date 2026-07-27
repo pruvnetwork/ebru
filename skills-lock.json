@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "okx-agent-payments-protocol": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-agent-payments-protocol/SKILL.md",
+      "computedHash": "722a3b7851a29d09c09506e371ac0d99574ff47cf90bb8c374161722769ae01e"
+    },
+    "okx-agentic-wallet": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-agentic-wallet/SKILL.md",
+      "computedHash": "fbacfc1d59492bfa210550bb1670a89f3ba8f70c8eabff2bcd5bb4dd6f8b1eba"
+    },
+    "okx-ai": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-ai/SKILL.md",
+      "computedHash": "9afdbb4c8f3c8856bf85d7d9626a72201008ef43206ae22c2b28f785e5ab5eb5"
+    },
+    "okx-dapp-discovery": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-dapp-discovery/SKILL.md",
+      "computedHash": "12406de18ae588972a06c0cebd356c51421074cb584a329195198122b026e7a0"
+    },
+    "okx-defi": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-defi/SKILL.md",
+      "computedHash": "450ab991dcd2116d9ff4a14d186a06908511141d1a4606ec30f571d99005ecf6"
+    },
+    "okx-dex-market": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-dex-market/SKILL.md",
+      "computedHash": "3af19985573e94a936a7226533556fc7150a038d88aa1be8b2ed0c942e895416"
+    },
+    "okx-growth-competition": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-growth-competition/SKILL.md",
+      "computedHash": "8e76abd7ac6ba3471fd27958b811c42fe669e92482145b24bf147c9c28da234a"
+    },
+    "okx-guide": {
+      "source": "okx/onchainos-skills",
+      "sourceType": "github",
+      "skillPath": "skills/okx-guide/SKILL.md",
+      "computedHash": "3ee92c5a119316ce78f67e1b33cf1cfae9c1700d7ddbe31e3a2d2511b890a58a"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+out/
+.vercel
+.env
+.env.local
+.DS_Store
+
+# Installed by the onchainos CLI, not authored here. `skills-lock.json` records
+# the versions, and .claude/skills are symlinks into a path outside this repo.
+.agents/
+.claude/

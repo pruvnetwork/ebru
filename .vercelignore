@@ -1,0 +1,5 @@
+# Rendered artefacts and tooling — none of it is needed to serve a request.
+out/
+test/
+bin/
+*.md
