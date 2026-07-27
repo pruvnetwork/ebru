@@ -25,6 +25,20 @@ const DEFAULT_PROTOCOL = '2024-11-05';
 
 const SERVER_INFO = { name: 'ebru', version: '0.1.0' };
 
+/**
+ * The largest sheet whose reply still fits down the wire.
+ *
+ * A tool result carries the image inline as base64, which costs a third again
+ * on top of the PNG, and the platform refuses a response over 4.5 MB. The
+ * densest pattern measures 3.46 MB at 1200 and 4.52 MB at 1400, so 1200 is the
+ * last size that fits with room to spare. It matters more here than it looks:
+ * the payment middleware settles *before* it flushes, so a reply that the
+ * platform then refuses would leave the caller charged and empty-handed. The
+ * REST endpoint streams the PNG itself and is not affected — it still goes to
+ * 2000.
+ */
+const MCP_MAX_SIZE = 1200;
+
 const TOOLS = [
   {
     name: 'marble',
@@ -39,9 +53,9 @@ const TOOLS = [
         },
         size: {
           type: 'integer',
-          description: 'Output size in pixels, 120–2000. Defaults to 600.',
+          description: 'Output size in pixels, 120–1200. Defaults to 600. Larger sheets are available from the REST endpoint, which streams the image rather than inlining it.',
           minimum: 120,
-          maximum: 2000,
+          maximum: MCP_MAX_SIZE,
         },
         pattern: {
           type: 'string',
@@ -85,7 +99,7 @@ const TOOLS = [
             },
           },
         },
-        size: { type: 'integer', description: 'Output size in pixels, 120–2000. Defaults to 600.' },
+        size: { type: 'integer', description: 'Output size in pixels, 120–1200. Defaults to 600.' },
       },
       required: ['address'],
     },
@@ -95,7 +109,7 @@ const TOOLS = [
 function clampSize(raw, fallback = 600) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return fallback;
-  return Math.max(120, Math.min(2000, Math.round(n)));
+  return Math.max(120, Math.min(MCP_MAX_SIZE, Math.round(n)));
 }
 
 /** MCP image content block. */

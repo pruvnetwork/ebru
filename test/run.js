@@ -710,6 +710,31 @@ await check('tools/call is the stage that charges', async () => {
   return `402 on tools/call, ${body.accepts[0].maxAmountRequired}`;
 });
 
+// The platform refuses a response over 4.5 MB, and the payment middleware
+// settles before it flushes — so a reply too big to send is a reply the caller
+// paid for and never got. The densest pattern at the largest accepted size is
+// the worst case; keep it under the limit.
+await check('the largest tool result still fits the response limit', async () => {
+  const free = createEbruServer({ rendersPerMinute: 200 });
+  await new Promise((r) => free.listen(0, r));
+  const r = await fetch(`http://127.0.0.1:${free.address().port}/mcp`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'tools/call',
+      // size is deliberately over the cap: the clamp is what is under test.
+      params: { name: 'marble', arguments: { seed: 'worst case', pattern: 'bulbul', size: 4000 } },
+    }),
+  });
+  const bytes = Buffer.byteLength(await r.text());
+  free.closeAllConnections();
+  await new Promise((r2) => free.close(r2));
+  const mb = bytes / 1048576;
+  assert(r.status === 200, `status ${r.status}`);
+  assert(mb < 4.5, `${mb.toFixed(2)} MB — over the platform's 4.5 MB limit`);
+  return `${mb.toFixed(2)} MB at the cap`;
+});
+
 await check('a batch containing tools/call is charged, one without it is not', async () => {
   const batch = (msgs) =>
     fetch(`${pbase}/mcp`, {
