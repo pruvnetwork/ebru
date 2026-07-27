@@ -18,6 +18,7 @@
 import { OKXFacilitatorClient } from '@okxweb3/x402-core';
 import { ExactEvmScheme } from '@okxweb3/x402-evm/exact/server';
 import { paymentMiddleware, x402ResourceServer } from '@okxweb3/x402-express';
+import { MCP_RESOURCE_DESCRIPTION } from './x402.js';
 
 /** X Layer mainnet, in the CAIP-2 form the marketplace asked for. */
 export const NETWORK = 'eip155:196';
@@ -67,8 +68,7 @@ export function paymentGate(paths = ['POST /mcp'], env = process.env) {
           price: creds.price,
         },
       ],
-      description:
-        'Ebru — Turkish paper marbling, computed. MCP tools: marble, wallet_portrait.',
+      description: MCP_RESOURCE_DESCRIPTION,
       mimeType: 'application/json',
     };
   }

@@ -24,6 +24,16 @@
 
 export const X402_VERSION = 1;
 
+/**
+ * What is being paid for, in one place.
+ *
+ * Both gates put this in the challenge they issue and the manifest repeats it,
+ * so a caller comparing the two sees one resource rather than two descriptions
+ * of what might be the same thing.
+ */
+export const MCP_RESOURCE_DESCRIPTION =
+  'Ebru — Turkish paper marbling, computed. MCP tools: marble, wallet_portrait.';
+
 export function paymentConfig(env = process.env) {
   const payTo = env.EBRU_X402_PAY_TO;
   const facilitator = env.EBRU_X402_FACILITATOR;

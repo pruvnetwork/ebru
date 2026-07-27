@@ -21,7 +21,7 @@ import { toPng } from './raster.js';
 import { PATTERN_NAMES, PALETTE_NAMES } from './index.js';
 import { latestBlock } from './chain.js';
 import { handleRpc, unrecognizedPost } from './mcp.js';
-import { paymentConfig, paymentRequirements, challengeBody, decodePayment, verifyPayment, settlePayment, settlementHeader } from './x402.js';
+import { paymentConfig, paymentRequirements, challengeBody, decodePayment, verifyPayment, settlePayment, settlementHeader, MCP_RESOURCE_DESCRIPTION } from './x402.js';
 
 const MAX_SIZE = 2000;
 // Delivery size only — the bath is always marbled at the same resolution, so
@@ -282,6 +282,77 @@ function advertisedPrice(ctx) {
   return ctx.payments.enabled ? ctx.payments.display : '0';
 }
 
+/** X Layer mainnet, in the CAIP-2 form both the marketplace and the SDK use. */
+const SETTLEMENT_NETWORK = 'eip155:196';
+
+/** The SDK's own timeout on a challenge, restated so the manifest can quote it. */
+const SDK_TIMEOUT_SECONDS = 300;
+
+/**
+ * A USD price string in atomic units of the settlement asset.
+ *
+ * Done on the decimal string rather than through a float on purpose: $0.001 has
+ * no exact binary form, and multiplying it out lands just past 1000 rather than
+ * on it. Returns null if the price carries more precision than the asset has,
+ * because rounding someone's price silently is worse than omitting the entry.
+ */
+function atomicAmount(price, decimals) {
+  const digits = String(price).replace(/[^\d.]/g, '');
+  if (!/^\d*\.?\d*$/.test(digits) || digits === '' || digits === '.') return null;
+  const [whole = '', fraction = ''] = digits.split('.');
+  if (fraction.length > decimals) return null;
+  const atomic = `${whole || '0'}${fraction.padEnd(decimals, '0')}`.replace(/^0+(?=\d)/, '');
+  return atomic;
+}
+
+/**
+ * The payment the endpoint's own 402 asks for, restated in the manifest.
+ *
+ * This was an empty list, and an empty list is a worse answer than no list at
+ * all: the manifest named a price but never said in what, to whom, or on which
+ * network, so a caller that builds its payment from the manifest — rather than
+ * by provoking a challenge first — had nothing it could sign. Both gates
+ * therefore report through the same functions that generate their challenges,
+ * so the two cannot drift apart.
+ *
+ * When the SDK gate is live the amount comes from the USD price the SDK is
+ * configured with, never from `EBRU_X402_PRICE`: that variable drives our own
+ * gate only, and reading it while the SDK is the one answering is exactly how
+ * the manifest would come to quote an amount the challenge does not ask for.
+ */
+function manifestAccepts(ctx, resource) {
+  const p = ctx.payments;
+
+  if (p.enabled) {
+    const req = paymentRequirements(p, { resource, description: MCP_RESOURCE_DESCRIPTION });
+    return [{
+      scheme: req.scheme,
+      network: req.network,
+      amount: req.maxAmountRequired,
+      asset: req.asset,
+      payTo: req.payTo,
+      maxTimeoutSeconds: req.maxTimeoutSeconds,
+      extra: req.extra,
+    }];
+  }
+
+  if (!p.sdkActive) return [];
+  const amount = atomicAmount(p.sdkPrice, p.decimals);
+  // No receiving address, no asset, or an unrepresentable price means there is
+  // nothing a caller could actually sign. Say nothing rather than something
+  // half-formed — the challenge is still there to be asked for.
+  if (!amount || amount === '0' || !p.payTo || !p.asset) return [];
+  return [{
+    scheme: 'exact',
+    network: SETTLEMENT_NETWORK,
+    amount,
+    asset: p.asset,
+    payTo: p.payTo,
+    maxTimeoutSeconds: SDK_TIMEOUT_SECONDS,
+    extra: { name: p.tokenName, version: p.tokenVersion },
+  }];
+}
+
 function manifest(ctx) {
   return {
   name: 'Ebru',
@@ -427,7 +498,7 @@ async function handle(req, res, ctx) {
             chargedAt: 'tools/call',
             free: ['initialize', 'ping', 'tools/list', 'resources/list', 'prompts/list'],
           },
-          accepts: [],
+          accepts: manifestAccepts(ctx, `${origin}/mcp`),
           services: [
             {
               name: 'marble',
@@ -633,7 +704,7 @@ async function handle(req, res, ctx) {
           const challenge = JSON.stringify(
             challengeBody(ctx.payments, {
               resource: `${origin}/mcp`,
-              description: 'Ebru — Turkish paper marbling, computed. MCP tools: marble, wallet_portrait.',
+              description: MCP_RESOURCE_DESCRIPTION,
             }),
           );
           res.writeHead(402, {

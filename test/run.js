@@ -711,6 +711,81 @@ await check('tools/call is the stage that charges', async () => {
   return `402 on tools/call, ${body.accepts[0].maxAmountRequired}`;
 });
 
+// The manifest listed a price and an empty `accepts`, which is the one shape a
+// caller cannot act on: it knows it must pay and not what with. Anything the
+// manifest offers has to be the same offer the challenge makes.
+await check('the manifest offers exactly what the challenge asks for', async () => {
+  const m = await (await fetch(`${pbase}/.well-known/x402`)).json();
+  assert(Array.isArray(m.accepts) && m.accepts.length === 1, `accepts is ${JSON.stringify(m.accepts)}`);
+  const offered = m.accepts[0];
+
+  const challenge = await (await rpc('tools/call', { name: 'marble', arguments: { seed: 'q', size: 140 } })).json();
+  const asked = challenge.accepts[0];
+
+  assert(offered.scheme === asked.scheme, `scheme ${offered.scheme} vs ${asked.scheme}`);
+  assert(offered.network === asked.network, `network ${offered.network} vs ${asked.network}`);
+  assert(offered.asset === asked.asset, `asset ${offered.asset} vs ${asked.asset}`);
+  assert(offered.payTo === asked.payTo, `payTo ${offered.payTo} vs ${asked.payTo}`);
+  assert(
+    offered.amount === asked.maxAmountRequired,
+    `manifest offers ${offered.amount}, challenge asks ${asked.maxAmountRequired}`,
+  );
+  // Without the EIP-712 domain the entry cannot be signed — the same omission
+  // the marketplace flagged on the challenge itself.
+  assert(offered.extra?.name === asked.extra?.name, 'token domain name missing');
+  assert(offered.extra?.version === asked.extra?.version, 'token domain version missing');
+  return `${offered.amount} ${offered.asset} on ${offered.network}`;
+});
+
+// The other gate. When the official SDK owns the handshake our own price is not
+// the one being charged, so the manifest has to derive the amount from what the
+// SDK was configured with — and derive it exactly, which a float does not.
+await check('the manifest quotes the SDK price in atomic units, exactly', async () => {
+  const sdk = createEbruServer({
+    payments: {
+      enabled: false,
+      sdkActive: true,
+      sdkPrice: '$0.001',
+      payTo: '0xPayToAddress',
+      asset: '0xUSDT0',
+      network: 'eip155:196',
+      decimals: 6,
+      tokenName: 'USD₮0',
+      tokenVersion: '1',
+    },
+    rendersPerMinute: 200,
+  });
+  await new Promise((r) => sdk.listen(0, r));
+  const base = `http://127.0.0.1:${sdk.address().port}`;
+  const m = await (await fetch(`${base}/.well-known/x402`)).json();
+  sdk.closeAllConnections();
+  await new Promise((r) => sdk.close(r));
+
+  assert(Array.isArray(m.accepts) && m.accepts.length === 1, `accepts is ${JSON.stringify(m.accepts)}`);
+  const a = m.accepts[0];
+  assert(a.amount === '1000', `$0.001 at 6 decimals should be 1000, got ${a.amount}`);
+  assert(a.network === 'eip155:196', `network ${a.network}`);
+  assert(a.asset === '0xUSDT0' && a.payTo === '0xPayToAddress', 'asset or payTo missing');
+  assert(a.extra?.version === '1', 'token domain missing');
+  return `${a.amount} atomic`;
+});
+
+// Nothing to sign is a legitimate state — a free endpoint has no accepts. What
+// is not legitimate is a half-built entry that looks payable and is not.
+await check('an unconfigured gate offers nothing rather than something broken', async () => {
+  const bare = createEbruServer({
+    payments: { enabled: false, sdkActive: true, sdkPrice: '$0.001', decimals: 6 },
+    rendersPerMinute: 200,
+  });
+  await new Promise((r) => bare.listen(0, r));
+  const base = `http://127.0.0.1:${bare.address().port}`;
+  const m = await (await fetch(`${base}/.well-known/x402`)).json();
+  bare.closeAllConnections();
+  await new Promise((r) => bare.close(r));
+  assert(Array.isArray(m.accepts) && m.accepts.length === 0, `offered ${JSON.stringify(m.accepts)}`);
+  return 'empty, as it should be';
+});
+
 // The platform refuses a response over 4.5 MB, and the payment middleware
 // settles before it flushes — so a reply too big to send is a reply the caller
 // paid for and never got. The densest pattern at the largest accepted size is
